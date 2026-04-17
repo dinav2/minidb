@@ -6,6 +6,7 @@
 #include "types.h"
 
 #define PAGE_SIZE 4096
+#define PAGE_HEADER_SIZE 128
 
 typedef struct {
   FILE *fp;
@@ -27,7 +28,10 @@ int pager_open(Pager *pp, const char *filename) {
     }
   }
 
-  fseek(pp->fp, 0, SEEK_END);
+  if (fseek(pp->fp, 0, SEEK_END) != 0) {
+    fprintf(stderr, "fseek failed");
+    return 1;
+  }
   pp->page_count = ftell(pp->fp)/PAGE_SIZE;
 
   return 0;
@@ -38,24 +42,49 @@ int pager_read_page(Pager *pp, u32 page, void *buf) {
     return 1;
   }
 
-  fseek(pp->fp, page*PAGE_SIZE, SEEK_SET);
-  
-  u8 c;
-  for (u32 i = 0; i < 8; i++) {
-    fread(&c, sizeof(u8), 1, pp->fp);
-    printf("%u", c);
+  if (fseek(pp->fp, page*PAGE_SIZE, SEEK_SET) != 0) {
+    fprintf(stderr, "fseek() failed");
+  }
+
+  usize n = fread(buf, 1, PAGE_SIZE, pp->fp);
+
+  if (n != PAGE_SIZE) {
+    fprintf(stderr, "fread failed");
+    return 1;
   }
 
   return 0;
 }
 
 void pager_create_page(Pager *pp) {
-  u8 buf[PAGE_SIZE] = { pp->page_count };
-  u32 n = fwrite(buf, 1, PAGE_SIZE, pp->fp);
+  if (fseek(pp->fp, pp->page_count * PAGE_SIZE, SEEK_SET) != 0) {
+    fprintf(stderr, "fseek() failed");
+  }
+  
+  // write the page_id
+  u32 buf[1] = { pp->page_count };
+  usize n = fwrite(buf, sizeof(u32), 1, pp->fp);
 
-  if (n != PAGE_SIZE) {
+  if (n != 1) {
     fprintf(stderr, "error when writing into file");
   }
+
+  // pretend the rest of the header is being written
+  u8 buff[PAGE_HEADER_SIZE - sizeof(u32)] = { 0 };
+  usize n1 = fwrite(buff, sizeof(u8), PAGE_HEADER_SIZE - sizeof(u32), pp->fp); 
+
+  if (n1 != PAGE_HEADER_SIZE - sizeof(u32)) {
+    fprintf(stderr, "error when writing into file");
+  }
+
+  // fill with 0 the rest of the page
+  u8 buff1[PAGE_SIZE - PAGE_HEADER_SIZE] = { 0 };
+  usize n2 = fwrite(buff1, sizeof(u8), PAGE_SIZE - PAGE_HEADER_SIZE, pp->fp);
+
+  if (n2 != PAGE_SIZE - PAGE_HEADER_SIZE) {
+    fprintf(stderr, "error when writing into file");
+  }
+
   
   pp->page_count++;
   return;
@@ -69,41 +98,6 @@ void pager_close(Pager *pp) {
   fclose(pp->fp);
 }
 
-void create_file() {
-  FILE *fp;
-
-  fp = fopen("test.db", "w+");
-
-  if (fp == NULL) {
-    fprintf(stderr, "failed to open file \n");
-    return;
-  }
-
-  fclose(fp);
-}
-
-void page_read() {
-  FILE *fp = fopen("test.db", "rb");
-
-  if (fp == NULL) {
-    fprintf(stderr, "failed to open file \n");
-    return;
-  }
-
-  if (fseek(fp, PAGE_SIZE * 1, SEEK_SET) != 0) {
-    fprintf(stderr, "error");
-    return;
-  }
-  
-  u8 c;
-  for (u32 i = 0; i < 15; i++) {
-    fread(&c, sizeof(u8), 1, fp);
-    printf("%u\n", c);
-  }
-
-  fclose(fp);
-}
-
 int main(void) {
   //create_file();
   //page_read();
@@ -111,11 +105,15 @@ int main(void) {
   pager_open(&pg1, "test.db");
   printf("Number of pages: %u\n", pg1.page_count);
   
-  u32 buf[PAGE_SIZE];
-  pager_read_page(&pg1, 100, &buf);
+  u8 buf[PAGE_SIZE];
   pager_create_page(&pg1);
   printf("Number of pages: %u\n", pg1.page_count);
-  pager_read_page(&pg1, pg1.page_count, &buf);
+  pager_read_page(&pg1, pg1.page_count-1, buf);
+
+  for (u32 i = 0; i < 8; i++) {
+    printf("%u", buf[i]);
+  }
+
   pager_close(&pg1);
   return 0;
 }
