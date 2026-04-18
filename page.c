@@ -13,6 +13,10 @@ static const PageHeader *page_header_const(const Page *pp) {
 
 u32 get_page_id(const Page *pp) { return page_header_const(pp)->page_id; }
 
+u32 get_page_records(const Page *pp) {
+  return page_header_const(pp)->record_count;
+}
+
 u32 get_page_free(const Page *pp) {
   return PAGE_SIZE - page_header_const(pp)->free_offset;
 }
@@ -52,6 +56,8 @@ int page_add_record(Page *pp, const void *record, u32 length) {
     memcpy(pp->data + header->free_offset, record, length);
     header->free_offset += length;
   }
+
+  header->record_count++;
 
   return 0;
 }

@@ -1,3 +1,4 @@
+#include <string.h>
 
 #include "database.h"
 #include "page.h"
@@ -24,10 +25,32 @@ int db_open(Database *db, const char *filename) {
   return 0;
 }
 
+static int _db_find_table(Page *catalog, u8 *table_name,
+                          CatalogRecord *record) {
+  u32 offset = PAGE_HEADER_SIZE;
+  for (u32 i = 0; i < get_page_records(catalog); i++) {
+    CatalogRecord *r = (CatalogRecord *)(catalog->data + offset);
+    if (strcmp((char *)r->table_name, (char *)table_name) == 0) {
+      if (record != NULL) {
+        *record = *r;
+      }
+      return 0;
+    }
+    offset += sizeof(CatalogRecord);
+  }
+
+  return 1;
+}
+
 int db_create_table(Database *db, u8 *table_name, Column *schema,
                     u32 column_count) {
   Page catalog, schema_page;
   pager_read_page(&db->pager, 1, catalog.data);
+
+  if (_db_find_table(&catalog, table_name, NULL) == 0) {
+    fprintf(stderr, "table already exists");
+    return 1;
+  }
 
   if (get_page_free(&catalog) < sizeof(CatalogRecord)) {
     // create new catalog page

@@ -59,6 +59,8 @@ typedef struct {
 
 u32 get_page_id(const Page *pp);
 u32 get_page_free(const Page *pp);
+u32 get_page_records(const Page *pp);
+
 int page_add_record(Page *pp, const void *record, u32 length);
 int page_init(Page *pp, u32 page_count, u8 page_type);
 int header_page_init(Page *pp, u32 page_id);
