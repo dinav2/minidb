@@ -8,6 +8,7 @@ typedef struct {
 } Database;
 
 int db_open(Database *db, const char *filename);
-int db_create_table(Database *db, u8 *table_name, Column *schema,
+int db_create_table(Database *db, char *table_name, Column *schema,
                     u32 column_count);
+int db_insert_row(Database *db, char *table_name, const void *buf, u32 length);
 void db_close(Database *db);

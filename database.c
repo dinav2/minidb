@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <string.h>
 
 #include "database.h"
@@ -6,7 +7,10 @@
 #include "table.h"
 
 int db_open(Database *db, const char *filename) {
-  pager_open(&db->pager, filename);
+  if (pager_open(&db->pager, filename) != 0) {
+    fprintf(stderr, "error at pager_open()\n");
+    return 1;
+  }
 
   if (db->pager.page_count == 0) {
     // new database, create header and catalog pages
@@ -25,14 +29,14 @@ int db_open(Database *db, const char *filename) {
   return 0;
 }
 
-static int _db_find_table(Page *catalog, u8 *table_name,
-                          CatalogRecord *record) {
+static int _db_find_table(Page *catalog, char *table_name,
+                          CatalogRecord **record) {
   u32 offset = PAGE_HEADER_SIZE;
   for (u32 i = 0; i < get_page_records(catalog); i++) {
     CatalogRecord *r = (CatalogRecord *)(catalog->data + offset);
-    if (strcmp((char *)r->table_name, (char *)table_name) == 0) {
+    if (strcmp(r->table_name, table_name) == 0) {
       if (record != NULL) {
-        *record = *r;
+        *record = r;
       }
       return 0;
     }
@@ -42,7 +46,7 @@ static int _db_find_table(Page *catalog, u8 *table_name,
   return 1;
 }
 
-int db_create_table(Database *db, u8 *table_name, Column *schema,
+int db_create_table(Database *db, char *table_name, Column *schema,
                     u32 column_count) {
   Page catalog, schema_page;
   pager_read_page(&db->pager, 1, catalog.data);
@@ -65,6 +69,61 @@ int db_create_table(Database *db, u8 *table_name, Column *schema,
 
   pager_write_page(&db->pager, get_page_id(&catalog), catalog.data);
   pager_write_page(&db->pager, schema_page_id, schema_page.data);
+
+  return 0;
+}
+
+int db_insert_row(Database *db, char *table_name, const void *buf, u32 length) {
+  Page catalog;
+  pager_read_page(&db->pager, 1, catalog.data);
+
+  CatalogRecord *table_record;
+  if (_db_find_table(&catalog, table_name, &table_record) != 0) {
+    fprintf(stderr, "table does not exist");
+    return 1;
+  }
+
+  if (table_record->row_size != length) {
+    fprintf(stderr, "record is different than row size of table");
+    return 1;
+  }
+
+  Page data_page;
+  u32 data_page_id;
+
+  b32 full = 0;
+  if (table_record->page_end != 0) {
+    pager_read_page(&db->pager, table_record->page_end, data_page.data);
+
+    full = (get_page_free(&data_page) < length);
+    if (!full) {
+      data_page_id = table_record->page_end;
+    }
+  }
+
+  if (table_record->page_end == 0 || full) {
+    // Create new data page
+    pager_create_page(&db->pager, &data_page_id);
+
+    if (table_record->page_end != 0) {
+      set_page_next_id(&data_page, data_page_id);
+      pager_write_page(&db->pager, get_page_id(&data_page), data_page.data);
+    }
+
+    page_init(&data_page, data_page_id, PAGE_TYPE_DATA);
+
+    if (table_record->page_start == 0) {
+      table_record->page_start = data_page_id;
+    }
+
+    table_record->page_end = data_page_id;
+  }
+
+  table_record->record_count++;
+
+  page_add_record(&data_page, buf, length);
+  pager_write_page(&db->pager, data_page_id, data_page.data);
+  pager_write_page(&db->pager, 1, catalog.data);
 
   return 0;
 }

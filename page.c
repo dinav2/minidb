@@ -21,6 +21,12 @@ u32 get_page_free(const Page *pp) {
   return PAGE_SIZE - page_header_const(pp)->free_offset;
 }
 
+int set_page_next_id(Page *pp, u32 next_id) {
+  page_header(pp)->next_page_id = next_id;
+
+  return 0;
+}
+
 int page_init(Page *pp, u32 page_id, u8 page_type) {
   // Initialize buffer with all 0s
   memset(pp->data, 0, PAGE_SIZE);
@@ -50,13 +56,11 @@ int page_add_record(Page *pp, const void *record, u32 length) {
   u32 free_bytes = PAGE_SIZE - header->free_offset;
 
   if (length > free_bytes) {
-    // create/look for a new page
     return 1;
-  } else {
-    memcpy(pp->data + header->free_offset, record, length);
-    header->free_offset += length;
   }
 
+  memcpy(pp->data + header->free_offset, record, length);
+  header->free_offset += length;
   header->record_count++;
 
   return 0;
