@@ -13,6 +13,8 @@ static const PageHeader *page_header_const(const Page *pp) {
 
 u32 get_page_id(const Page *pp) { return page_header_const(pp)->page_id; }
 
+u8 get_page_type(Page *pp) { return page_header(pp)->page_type; }
+
 u32 get_page_records(const Page *pp) {
   return page_header_const(pp)->record_count;
 }
@@ -20,6 +22,8 @@ u32 get_page_records(const Page *pp) {
 u32 get_page_free(const Page *pp) {
   return PAGE_SIZE - page_header_const(pp)->free_offset;
 }
+
+u32 get_page_next_id(Page *pp) { return page_header(pp)->next_page_id; }
 
 int set_page_next_id(Page *pp, u32 next_id) {
   page_header(pp)->next_page_id = next_id;
@@ -54,13 +58,20 @@ int header_page_init(Page *pp, u32 page_id) {
 int page_add_record(Page *pp, const void *record, u32 length) {
   PageHeader *header = page_header(pp);
   u32 free_bytes = PAGE_SIZE - header->free_offset;
+  u32 record_header = 0;
+  if (header->page_type == PAGE_TYPE_DATA) {
+    record_header = RECORD_HEADER_SIZE;
+  }
 
-  if (length > free_bytes) {
+  if (length + record_header > free_bytes) {
     return 1;
   }
 
-  memcpy(pp->data + header->free_offset, record, length);
-  header->free_offset += length;
+  // Leave space for row header
+  memset(pp->data + header->free_offset, 0, record_header);
+
+  memcpy(pp->data + header->free_offset + record_header, record, length);
+  header->free_offset += length + record_header;
   header->record_count++;
 
   return 0;

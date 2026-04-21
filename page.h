@@ -23,6 +23,9 @@
 #define PAGE_RECORD_COUNT_OFFSET 8
 #define PAGE_TYPE_OFFSET 12
 
+// Record Header
+#define RECORD_HEADER_SIZE 1
+
 // Database Header
 
 // Page Types
@@ -50,16 +53,11 @@ typedef struct {
   u8 data[PAGE_SIZE];
 } Page;
 
-// temporal record definition
-typedef struct {
-  int id;
-  int x;
-  int y;
-} Record;
-
 u32 get_page_id(const Page *pp);
+u8 get_page_type(Page *pp);
 u32 get_page_free(const Page *pp);
 u32 get_page_records(const Page *pp);
+u32 get_page_next_id(Page *pp);
 
 int set_page_next_id(Page *pp, u32 next_id);
 
