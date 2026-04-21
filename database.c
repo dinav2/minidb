@@ -128,4 +128,72 @@ int db_insert_row(Database *db, char *table_name, const void *buf, u32 length) {
   return 0;
 }
 
+int db_delete_row(Database *db, Cursor *cursor) {
+  memset(cursor->curr_page.data + PAGE_HEADER_SIZE +
+             (cursor->read_records - 1) *
+                 (cursor->row_size + RECORD_HEADER_SIZE),
+         0x01, 1);
+
+  pager_write_page(&db->pager, get_page_id(&cursor->curr_page),
+                   cursor->curr_page.data);
+  return 0;
+}
+
+int db_scan_table(Database *db, char *table_name, Cursor *cursor) {
+  Page catalog;
+  pager_read_page(&db->pager, 1, catalog.data);
+
+  CatalogRecord *table_record;
+  if (_db_find_table(&catalog, table_name, &table_record) != 0) {
+    fprintf(stderr, "table does not exist\n");
+    return 1;
+  }
+  Page first_page;
+  pager_read_page(&db->pager, table_record->page_start, first_page.data);
+
+  Cursor c = {.curr_page = first_page,
+              .read_records = 0,
+              .row_size = table_record->row_size};
+
+  *cursor = c;
+
+  return 0;
+}
+
+int db_scan_next(Database *db, Cursor *cursor, void *buf) {
+  u32 slot_size = cursor->row_size + RECORD_HEADER_SIZE;
+  u32 offset = PAGE_HEADER_SIZE + cursor->read_records * slot_size;
+
+  while (1) {
+    if (cursor->read_records >= get_page_records(&cursor->curr_page)) {
+      Page next_page;
+      u32 next_page_id = get_page_next_id(&cursor->curr_page);
+
+      if (next_page_id == 0) {
+        return SCAN_END;
+      }
+
+      cursor->read_records = 0;
+
+      pager_read_page(&db->pager, next_page_id, next_page.data);
+
+      cursor->curr_page = next_page;
+    }
+
+    offset = PAGE_HEADER_SIZE + cursor->read_records * slot_size;
+
+    if (cursor->curr_page.data[offset] == 0) {
+      break;
+    }
+
+    cursor->read_records++;
+  }
+
+  memcpy(buf, cursor->curr_page.data + offset + RECORD_HEADER_SIZE,
+         cursor->row_size);
+  cursor->read_records++;
+
+  return SCAN_OK;
+}
+
 void db_close(Database *db) { pager_close(&db->pager); }
