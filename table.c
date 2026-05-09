@@ -7,7 +7,7 @@
 int create_table(char *table_name, Column *schema, u32 column_count,
                  Page *catalog_page, Page *schema_page) {
   CatalogRecord record = {.schema_page = get_page_id(schema_page)};
-  strncpy((char *)record.table_name, (char *)table_name, 31);
+  strncpy(record.table_name, table_name, 31);
 
   for (u32 i = 0; i < column_count; i++) {
     record.row_size += (schema + i)->size;
