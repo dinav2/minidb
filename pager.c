@@ -51,6 +51,8 @@ static BufferSlot *_cache_evict_slot(Pager *pager, BufferSlot *slot) {
   return slot;
 }
 
+static void _cache_mark_dirty(BufferSlot *slot) { slot->dirty = 1; }
+
 static BufferSlot *_cache_lookup_slot(Pager *pager, u32 page_id) {
   for (u32 i = 0; i < POOL_SIZE; i++) {
     BufferSlot *slot = &pager->pool[i];
@@ -69,7 +71,6 @@ static BufferSlot *_cache_reserve_slot(Pager *pager) {
     }
   }
 
-  // Pool is full, eviction is needed
   if (!pager->tail) {
     return NULL;
   }
@@ -77,59 +78,73 @@ static BufferSlot *_cache_reserve_slot(Pager *pager) {
   return _cache_evict_slot(pager, pager->tail);
 }
 
-static BufferSlot *_cache_add_slot(Pager *pager, u32 page_id, u8 dirty,
-                                   u8 *is_new) {
-  BufferSlot *tmp = _cache_lookup_slot(pager, page_id);
+static int _cache_load_slot(Pager *pager, BufferSlot *slot, u32 page_id) {
 
-  if (!tmp) {
-    for (u32 i = 0; i < POOL_SIZE; i++) {
-      if (!pager->pool[i].occupied) {
-        tmp = &pager->pool[i];
-        break;
+  if (fseek(pager->fp, page_id * PAGE_SIZE, SEEK_SET) != 0) {
+    fprintf(stderr, "fseek() failed\n");
+    return 1;
+  }
+
+  usize n = fread(slot->page.data, 1, PAGE_SIZE, pager->fp);
+
+  if (n != PAGE_SIZE) {
+    fprintf(stderr, "fread failed\n");
+    return 1;
+  }
+
+  slot->page_id = page_id;
+  slot->occupied = 1;
+  slot->dirty = 0;
+  slot->next = NULL;
+  slot->prev = NULL;
+
+  return 0;
+}
+
+static int _cache_init_new_slot(BufferSlot *slot, u32 page_id) {
+  slot->page_id = page_id;
+  slot->occupied = 1;
+  slot->dirty = 0;
+  slot->next = NULL;
+  slot->prev = NULL;
+
+  return 0;
+}
+
+static int _cache_promote_slot(Pager *pager, BufferSlot *slot) {
+  if (!slot) {
+    return -1;
+  }
+
+  if (slot == pager->head) {
+    return 0;
+  }
+
+  // cache is empty
+  if (!pager->head && !pager->tail) {
+    pager->head = slot;
+    pager->tail = slot;
+    slot->prev = NULL;
+    slot->next = NULL;
+  } else {
+    // existing slot
+    if (slot->prev) {
+      slot->prev->next = slot->next;
+      if (slot->next) {
+        slot->next->prev = slot->prev;
+      } else {
+        pager->tail = slot->prev;
       }
     }
 
-    if (tmp == NULL) {
-      tmp = _cache_evict_slot(pager, pager->tail);
-    }
+    slot->prev = NULL;
+    slot->next = pager->head;
 
-    tmp->occupied = 1;
-    tmp->page_id = page_id;
-    if (is_new) {
-      *is_new = 1;
-    }
+    pager->head->prev = slot;
+    pager->head = slot;
   }
 
-  if (dirty) {
-    tmp->dirty = 1;
-  }
-
-  if (tmp == pager->head) {
-    return tmp;
-  }
-
-  if (!pager->head && !pager->tail) {
-    pager->head = tmp;
-    pager->tail = tmp;
-    return tmp;
-  }
-
-  if (tmp->prev) {
-    tmp->prev->next = tmp->next;
-  }
-
-  pager->head->prev = tmp;
-
-  if (tmp == pager->tail) {
-    pager->tail = tmp->prev;
-  }
-
-  tmp->prev = NULL;
-  tmp->next = pager->head;
-
-  pager->head = tmp;
-
-  return tmp;
+  return 0;
 }
 
 int cache_flush(Pager *pager) {
@@ -182,62 +197,31 @@ int pager_open(Pager *pp, const char *filename) {
   return 0;
 }
 
-// int pager_read_page(Pager *pp, u32 page, void *buf) {
-//   if (page >= pp->page_count) {
-//     return 1;
-//   }
-//
-//   u8 is_new = 0;
-//   BufferSlot *cache_slot = _cache_add_slot(pp, page, 0, &is_new);
-//
-//   if (!is_new) {
-//     memcpy(buf, cache_slot->page.data, PAGE_SIZE);
-//     return 0;
-//   }
-//
-//   if (fseek(pp->fp, page * PAGE_SIZE, SEEK_SET) != 0) {
-//     fprintf(stderr, "fseek() failed\n");
-//     return 1;
-//   }
-//
-//   usize n = fread(buf, 1, PAGE_SIZE, pp->fp);
-//
-//   if (n != PAGE_SIZE) {
-//     fprintf(stderr, "fread failed\n");
-//     return 1;
-//   }
-//
-//   memcpy(cache_slot->page.data, buf, PAGE_SIZE);
-//
-//   return 0;
-// }
-//
-
 const Page *pager_get_page(Pager *pager, u32 page_id) {
   if (page_id >= pager->page_count) {
     return NULL;
   }
 
-  u8 is_new = 0;
-  BufferSlot *cache_slot = _cache_add_slot(pager, page_id, 0, &is_new);
+  BufferSlot *slot;
+  slot = _cache_lookup_slot(pager, page_id);
 
-  if (!is_new) {
-    return &cache_slot->page;
+  if (slot) {
+    _cache_promote_slot(pager, slot);
+    return &slot->page;
   }
 
-  if (fseek(pager->fp, page_id * PAGE_SIZE, SEEK_SET) != 0) {
-    fprintf(stderr, "fseek() failed\n");
-    return NULL;
+  slot = _cache_reserve_slot(pager);
+
+  if (slot) {
+    if (_cache_load_slot(pager, slot, page_id) != 0) {
+      fprintf(stderr, "cache load slot failed\n");
+      return NULL;
+    }
+    _cache_promote_slot(pager, slot);
+    return &slot->page;
   }
 
-  usize n = fread(cache_slot->page.data, 1, PAGE_SIZE, pager->fp);
-
-  if (n != PAGE_SIZE) {
-    fprintf(stderr, "fread failed\n");
-    return NULL;
-  }
-
-  return &cache_slot->page;
+  return NULL;
 }
 
 Page *pager_get_page_for_write(Pager *pager, u32 page_id) {
@@ -245,26 +229,28 @@ Page *pager_get_page_for_write(Pager *pager, u32 page_id) {
     return NULL;
   }
 
-  u8 is_new = 0;
-  BufferSlot *cache_slot = _cache_add_slot(pager, page_id, 1, &is_new);
+  BufferSlot *slot;
+  slot = _cache_lookup_slot(pager, page_id);
 
-  if (!is_new) {
-    return &cache_slot->page;
+  if (slot) {
+    _cache_mark_dirty(slot);
+    _cache_promote_slot(pager, slot);
+    return &slot->page;
   }
 
-  if (fseek(pager->fp, page_id * PAGE_SIZE, SEEK_SET) != 0) {
-    fprintf(stderr, "fseek() failed\n");
-    return NULL;
+  slot = _cache_reserve_slot(pager);
+
+  if (slot) {
+    if (_cache_load_slot(pager, slot, page_id) != 0) {
+      fprintf(stderr, "cache load slot failed\n");
+      return NULL;
+    }
+    _cache_mark_dirty(slot);
+    _cache_promote_slot(pager, slot);
+    return &slot->page;
   }
 
-  usize n = fread(cache_slot->page.data, 1, PAGE_SIZE, pager->fp);
-
-  if (n != PAGE_SIZE) {
-    fprintf(stderr, "fread failed\n");
-    return NULL;
-  }
-
-  return &cache_slot->page;
+  return NULL;
 }
 
 int pager_write_page(Pager *pp, u32 page, const void *buf) {
@@ -296,11 +282,16 @@ int pager_write_page(Pager *pp, u32 page, const void *buf) {
   return 0;
 }
 
-int pager_mark_dity(Pager *Pager, u32 page_id) { return 0; }
-
 Page *pager_create_page(Pager *pp, u32 *page_id) {
   *page_id = pp->page_count;
-  BufferSlot *slot = _cache_add_slot(pp, pp->page_count, 1, NULL);
+  BufferSlot *slot = _cache_reserve_slot(pp);
+  if (!slot) {
+    fprintf(stderr, "error when reserving slot\n");
+    return NULL;
+  }
+  _cache_init_new_slot(slot, *page_id);
+  _cache_mark_dirty(slot);
+  _cache_promote_slot(pp, slot);
 
   pp->page_count++;
 
