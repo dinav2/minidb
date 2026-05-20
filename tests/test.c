@@ -78,11 +78,101 @@ error_cleanup:
   return 1;
 }
 
+static int test_rejects_long_table_name() {
+  Database db;
+  b8 db_opened = 0;
+  const char *path = "/tmp/minidb-test-persistent.db";
+  remove(path);
+
+  if (db_open(&db, path) != 0) {
+    goto error_cleanup;
+  }
+  db_opened = 1;
+
+  Column column1 = {.type = 0, .size = 4, .name = "column1"};
+  char *table_name = "aaaabbbbccccddddeeeeffffgggghhhh";
+  if (db_create_table(&db, table_name, &column1, 1) != 0) {
+    goto error_cleanup;
+  }
+
+  i32 buf = 200;
+  if (db_insert_row(&db, table_name, &buf, sizeof(i32)) != 0) {
+    goto error_cleanup;
+  }
+
+  Cursor cursor;
+  if (db_scan_table(&db, table_name, &cursor) != 0) {
+    goto error_cleanup;
+  }
+
+  db_close(&db);
+  return 0;
+
+error_cleanup:
+  if (db_opened) {
+    db_close(&db);
+  }
+  remove(path);
+  return 1;
+}
+
+static int test_scan_empty_table() {
+  Database db;
+  b8 db_opened = 0;
+  const char *path = "/tmp/minidb-test-persistent.db";
+  remove(path);
+
+  if (db_open(&db, path) != 0) {
+    goto error_cleanup;
+  }
+
+  db_opened = 1;
+
+  Column column1 = {.type = 0, .size = 4, .name = "column1"};
+  char *table_name = "Table1";
+  if (db_create_table(&db, table_name, &column1, 1) != 0) {
+    goto error_cleanup;
+  }
+
+  Cursor cursor;
+  if (db_scan_table(&db, table_name, &cursor) != 0) {
+    goto error_cleanup;
+  }
+
+  u32 buf;
+  if (db_scan_next(&db, &cursor, &buf) != SCAN_END) {
+    goto error_cleanup;
+  }
+
+  db_close(&db);
+  return 0;
+
+error_cleanup:
+  if (db_opened) {
+    db_close(&db);
+  }
+  remove(path);
+  return 1;
+}
+
 int main() {
   if (test_create_page_persists() != 0) {
-    fprintf(stderr, "failure at test 1");
+    fprintf(stderr, "Failure at test 1\n");
   } else {
-    printf("Test 1 passed succesfully");
+    printf("Test 1 passed succesfully\n");
   }
+
+  if (test_rejects_long_table_name() != 0) {
+    fprintf(stderr, "Failure at test 2\n");
+  } else {
+    printf("Test 2 passed succesfully\n");
+  }
+
+  if (test_scan_empty_table() != 0) {
+    fprintf(stderr, "Failure at test 3\n");
+  } else {
+    printf("Test 3 passed succesfully\n");
+  }
+
   return 0;
 }
