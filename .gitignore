@@ -1,2 +1,4 @@
 main
+unit_test_bin
+integration_test_bin
 *.db
