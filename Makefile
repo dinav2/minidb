@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -pedantic -Wextra -g -std=c11 -I. -Itest/vendor/unity
+CFLAGS = -Wall -Wpedantic -Wextra -Werror -g -std=c11 -I. -Itest/vendor/unity
 
 APP_SRC = main.c page.c pager.c database.c table.c
 UNIT_TEST_SRC = test/unit_runner.c test/test_page.c test/test_pager.c test/vendor/unity/unity.c page.c pager.c database.c table.c
