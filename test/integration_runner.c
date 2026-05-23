@@ -1,6 +1,7 @@
 #include "unity.h"
 
 #include "database.h"
+#include "unity_internals.h"
 #include <stdio.h>
 
 Database db;
@@ -27,6 +28,8 @@ extern void test_db_scan_next_empty_table_returns_scan_end(void);
 extern void test_db_create_table_rejects_duplicates(void);
 extern void test_db_create_table_rejects_long_name(void);
 extern void test_db_scan_next_returns_inserted_row_after_reopen(void);
+extern void test_db_insert_row_rejects_wrong_row_size(void);
+extern void test_db_scan_table_rejects_nonexistent_table(void);
 
 int main(void) {
   UNITY_BEGIN();
@@ -35,6 +38,8 @@ int main(void) {
   RUN_TEST(test_db_create_table_rejects_duplicates);
   RUN_TEST(test_db_create_table_rejects_long_name);
   RUN_TEST(test_db_scan_next_returns_inserted_row_after_reopen);
+  RUN_TEST(test_db_insert_row_rejects_wrong_row_size);
+  RUN_TEST(test_db_scan_table_rejects_nonexistent_table);
 
   return UNITY_END();
 }

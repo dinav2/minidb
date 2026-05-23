@@ -69,3 +69,23 @@ void test_db_scan_next_returns_inserted_row_after_reopen() {
   TEST_ASSERT_EQUAL_INT(SCAN_OK, result);
   TEST_ASSERT_EQUAL_MEMORY(&buf, &result_buf, sizeof(buf));
 }
+
+void test_db_insert_row_rejects_wrong_row_size() {
+  char *table_name = "Table1";
+
+  Column column1 = {.type = 0, .size = 2, .name = "column1"};
+  int table_create = db_create_table(&db, table_name, &column1, 1);
+  TEST_ASSERT_EQUAL_INT(0, table_create);
+
+  u32 buf = 42;
+  int insert_row = db_insert_row(&db, table_name, &buf, sizeof(buf));
+  TEST_ASSERT_EQUAL_INT(1, insert_row);
+}
+
+void test_db_scan_table_rejects_nonexistent_table() {
+  char *table_name = "Table1";
+
+  Cursor cursor;
+  int scan = db_scan_table(&db, table_name, &cursor);
+  TEST_ASSERT_EQUAL_INT(1, scan);
+}
