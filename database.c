@@ -45,19 +45,23 @@ static int _db_find_table(const Page *catalog, char *table_name,
 
 int db_create_table(Database *db, char *table_name, Column *schema,
                     u32 column_count) {
-  // pager_read_page(&db->pager, 1, catalog.data);
+  if (strlen(table_name) >= 32) {
+    fprintf(stderr, "table name is too long\n");
+    return 1;
+  }
+
   Page *catalog = pager_get_page_for_write(&db->pager, 1);
   if (!catalog) {
     return 1;
   }
 
   if (_db_find_table(catalog, table_name, NULL) == 0) {
-    fprintf(stderr, "table already exists");
+    fprintf(stderr, "table already exists\n");
     return 1;
   }
 
   if (get_page_free(catalog) < sizeof(CatalogRecord)) {
-    // create new catalog page
+    // MISSING create new catalog page
     return 1;
   }
 
@@ -69,7 +73,7 @@ int db_create_table(Database *db, char *table_name, Column *schema,
 
   page_init(schema_page, schema_page_id, PAGE_TYPE_SCHEMA);
 
-  create_table(table_name, schema, column_count, catalog, schema_page);
+  table_create(table_name, schema, column_count, catalog, schema_page);
 
   return 0;
 }
@@ -95,7 +99,6 @@ int db_insert_row(Database *db, char *table_name, const void *buf, u32 length) {
 
   Page *data_page;
 
-  b32 full = 0;
   if (table_record->page_end != 0) {
     data_page = pager_get_page_for_write(&db->pager, table_record->page_end);
     if (!data_page) {
@@ -166,7 +169,12 @@ int db_scan_table(Database *db, char *table_name, Cursor *cursor) {
   }
 
   if (table_record->page_start == 0) {
-    return 1;
+    Cursor c = {.curr_page = NULL,
+                .curr_page_id = 0,
+                .read_records = 0,
+                .row_size = table_record->row_size};
+    *cursor = c;
+    return 0;
   }
 
   const Page *first_page = pager_get_page(&db->pager, table_record->page_start);
@@ -185,10 +193,14 @@ int db_scan_table(Database *db, char *table_name, Cursor *cursor) {
 }
 
 int db_scan_next(Database *db, Cursor *cursor, void *buf) {
+  if (cursor->curr_page_id == 0 || cursor->curr_page == NULL) {
+    return SCAN_END;
+  }
+
   u32 slot_size = cursor->row_size + RECORD_HEADER_SIZE;
   u32 offset = PAGE_HEADER_SIZE + cursor->read_records * slot_size;
 
-  while (1) {
+  for (;;) {
     if (cursor->read_records >= get_page_records(cursor->curr_page)) {
       u32 next_page_id = get_page_next_id(cursor->curr_page);
 

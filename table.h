@@ -15,8 +15,8 @@ typedef struct {
 typedef struct {
   u16 type;
   u16 size;
-  u8 name[16];
+  char name[16];
 } Column;
 
-int create_table(char *table_name, Column *schema, u32 column_count,
+int table_create(char *table_name, Column *schema, u32 column_count,
                  Page *catalog_page, Page *schema_page);

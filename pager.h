@@ -31,7 +31,5 @@ int pager_open(Pager *pp, const char *filename);
 const Page *pager_get_page(Pager *pager, u32 page_id);
 Page *pager_get_page_for_write(Pager *pager, u32 page_id);
 
-int pager_read_page(Pager *pp, u32 page, void *buf);
-int pager_write_page(Pager *pp, u32 page, const void *buf);
 Page *pager_create_page(Pager *pp, u32 *page_id);
 void pager_close(Pager *pp);

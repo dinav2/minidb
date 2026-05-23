@@ -6,6 +6,8 @@
 #include "page.h"
 #include "pager.h"
 
+static int pager_write_page(Pager *pp, u32 page, const void *buf);
+
 static int _cache_init(Pager *pager) {
   for (u32 i = 0; i < POOL_SIZE; i++) {
     pager->pool[i].occupied = 0;
@@ -253,25 +255,25 @@ Page *pager_get_page_for_write(Pager *pager, u32 page_id) {
   return NULL;
 }
 
-int pager_write_page(Pager *pp, u32 page, const void *buf) {
+static int pager_write_page(Pager *pp, u32 page, const void *buf) {
   if (page > pp->page_count) {
     return 1;
   }
 
   if (fseek(pp->fp, page * PAGE_SIZE, SEEK_SET) != 0) {
-    fprintf(stderr, "fseek failed");
+    fprintf(stderr, "fseek failed\n");
     return 1;
   }
 
   usize n = fwrite(buf, sizeof(u8), PAGE_SIZE, pp->fp);
 
   if (n != PAGE_SIZE) {
-    fprintf(stderr, "error when writing into file");
+    fprintf(stderr, "error when writing into file\n");
     return 1;
   }
 
   if (fflush(pp->fp) == EOF) {
-    fprintf(stderr, "error when flushing");
+    fprintf(stderr, "error when flushing\n");
     return 1;
   }
 
