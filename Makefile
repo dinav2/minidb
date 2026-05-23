@@ -14,6 +14,8 @@ test-unit : $(UNIT_TEST_SRC)
 	$(CC) $(CFLAGS) $^ -o unit_test_bin
 	./unit_test_bin
 
-test-integration: $(INTEGRATION_TEST_SRC)
+test-integration : $(INTEGRATION_TEST_SRC)
 	$(CC) $(CFLAGS) $^ -o integration_test_bin
 	./integration_test_bin
+
+test: test-unit test-integration
