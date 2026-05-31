@@ -8,7 +8,9 @@
  * |      0 | page_id      |    4 |
  * |      4 | free_offset  |    4 |
  * |      8 | record_count |    4 |
- * |      12 | (reserved)   |  116 |
+ * |     12 | next_page_id |    4 |
+ * |     16 | page_type    |    1 |
+ * |     17 | (reserved)   |  111 |
  * +--------+--------------+------+
  * |    128 | payload      | 3968 |
  * +--------+--------------+------+
@@ -17,16 +19,8 @@
 #define PAGE_SIZE 4096
 #define PAGE_HEADER_SIZE 128
 
-// Page Header
-#define PAGE_ID_OFFSET 0
-#define PAGE_FREE_OFFSET 4
-#define PAGE_RECORD_COUNT_OFFSET 8
-#define PAGE_TYPE_OFFSET 12
-
 // Record Header
 #define RECORD_HEADER_SIZE 1
-
-// Database Header
 
 // Page Types
 #define PAGE_TYPE_HEADER 0x01

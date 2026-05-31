@@ -79,7 +79,6 @@ int db_create_table(Database *db, char *table_name, Column *schema,
 }
 
 int db_insert_row(Database *db, char *table_name, const void *buf, u32 length) {
-  // pager_read_page(&db->pager, 1, catalog.data);
   Page *catalog = pager_get_page_for_write(&db->pager, 1);
 
   if (!catalog) {
