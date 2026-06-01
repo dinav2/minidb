@@ -1,6 +1,8 @@
 #include "database.h"
+#include "page.h"
 #include "table.h"
 #include "unity.h"
+#include <stdio.h>
 
 extern Database db;
 extern b8 db_opened;
@@ -88,4 +90,33 @@ void test_db_scan_table_rejects_nonexistent_table() {
   Cursor cursor;
   int scan = db_scan_table(&db, table_name, &cursor);
   TEST_ASSERT_EQUAL_INT(1, scan);
+}
+
+void test_db_create_table_creates_multipage_catalog() {
+  char table_name[32];
+  Column column1 = {.type = 0, .size = 2, .name = "column1"};
+  u32 maxCatalogRecords =
+      (PAGE_SIZE - PAGE_HEADER_SIZE) / sizeof(CatalogRecord);
+  for (u32 i = 0; i < maxCatalogRecords + 1; i++) {
+    snprintf(table_name, sizeof(table_name), "Table%d", i);
+
+    int table_create = db_create_table(&db, table_name, &column1, 1);
+    TEST_ASSERT_EQUAL_INT(0, table_create);
+  }
+}
+
+void test_db_insert_row_finds_table_in_multipage_catalog() {
+  char table_name[32];
+  Column column1 = {.type = 0, .size = 4, .name = "column1"};
+  u32 maxCatalogRecords =
+      (PAGE_SIZE - PAGE_HEADER_SIZE) / sizeof(CatalogRecord);
+  for (u32 i = 0; i < maxCatalogRecords + 1; i++) {
+    snprintf(table_name, sizeof(table_name), "Table%d", i);
+
+    int table_create = db_create_table(&db, table_name, &column1, 1);
+    TEST_ASSERT_EQUAL_INT(0, table_create);
+  }
+  i32 buf = 123;
+  int inserted_row = db_insert_row(&db, table_name, &buf, sizeof(buf));
+  TEST_ASSERT_EQUAL_INT(0, inserted_row);
 }
