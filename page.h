@@ -56,6 +56,7 @@ u32 get_page_next_id(const Page *pp);
 int set_page_next_id(Page *pp, u32 next_id);
 
 int page_add_record(Page *pp, const void *record, u32 length);
+int page_update_row(Page *pp, u32 record_index, u16 row_size, void *buf);
 int page_init(Page *pp, u32 page_count, u8 page_type);
 b8 page_can_fit_record(const Page *pp, u32 length);
 int page_delete_row(Page *pp, u32 record_index, u16 row_size);

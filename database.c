@@ -201,6 +201,16 @@ int db_delete_row(Database *db, Cursor *cursor) {
   return 0;
 }
 
+int db_update_row(Database *db, Cursor *cursor, void *buf) {
+  Page *page = pager_get_page_for_write(&db->pager, cursor->curr_page_id);
+  if (!page) {
+    return 1;
+  }
+
+  page_update_row(page, cursor->read_records, cursor->row_size, buf);
+  return 0;
+}
+
 int db_scan_table(Database *db, char *table_name, Cursor *cursor) {
   const Page *catalog = pager_get_page(&db->pager, 1);
   if (!catalog) {
