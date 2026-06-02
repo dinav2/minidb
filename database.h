@@ -23,6 +23,7 @@ int db_open(Database *db, const char *filename);
 int db_create_table(Database *db, char *table_name, Column *schema,
                     u32 column_count);
 int db_delete_row(Database *db, Cursor *cursor);
+int db_update_row(Database *db, Cursor *cursor, void *buf);
 int db_insert_row(Database *db, char *table_name, const void *buf, u32 length);
 int db_scan_table(Database *db, char *table_name, Cursor *cursor);
 int db_scan_next(Database *db, Cursor *cursor, void *buf);

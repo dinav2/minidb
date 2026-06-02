@@ -92,3 +92,12 @@ int page_delete_row(Page *pp, u32 record_index, u16 row_size) {
 
   return 0;
 }
+
+int page_update_row(Page *pp, u32 record_index, u16 row_size, void *buf) {
+  memcpy(pp->data + PAGE_HEADER_SIZE +
+             (record_index - 1) * (row_size + RECORD_HEADER_SIZE) +
+             RECORD_HEADER_SIZE,
+         buf, row_size);
+
+  return 0;
+}

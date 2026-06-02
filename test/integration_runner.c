@@ -33,6 +33,8 @@ extern void test_db_scan_table_rejects_nonexistent_table(void);
 extern void test_db_create_table_creates_multipage_catalog(void);
 extern void test_db_insert_row_finds_table_in_multipage_catalog(void);
 extern void test_db_scan_table_scans_multipage_catalog(void);
+extern void test_db_scan_next_cursor_read_pages_returns_correct_number(void);
+extern void test_db_update_row_modifies_row(void);
 
 int main(void) {
   UNITY_BEGIN();
@@ -46,6 +48,8 @@ int main(void) {
   RUN_TEST(test_db_create_table_creates_multipage_catalog);
   RUN_TEST(test_db_insert_row_finds_table_in_multipage_catalog);
   RUN_TEST(test_db_scan_table_scans_multipage_catalog);
+  RUN_TEST(test_db_scan_next_cursor_read_pages_returns_correct_number);
+  RUN_TEST(test_db_update_row_modifies_row);
 
   return UNITY_END();
 }

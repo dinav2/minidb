@@ -3,6 +3,7 @@
 #include "table.h"
 #include "unity.h"
 #include <stdio.h>
+#include <string.h>
 
 extern Database db;
 extern b8 db_opened;
@@ -145,4 +146,64 @@ void test_db_scan_table_scans_multipage_catalog() {
   int result = db_scan_next(&db, &cursor, &buf);
   TEST_ASSERT_EQUAL_INT(SCAN_OK, result);
   TEST_ASSERT_EQUAL_UINT32(row, buf);
+}
+
+void test_db_scan_next_cursor_read_pages_returns_correct_number() {
+  u32 records = 5;
+  char *table_name = "Table1";
+  Column column1 = {.type = 0, .size = 4, .name = "column1"};
+
+  int table_create = db_create_table(&db, table_name, &column1, 1);
+  TEST_ASSERT_EQUAL_INT(0, table_create);
+
+  for (u32 i = 0; i < records; i++) {
+    i32 buf = 100;
+    int inserted_row = db_insert_row(&db, table_name, &buf, sizeof(buf));
+    TEST_ASSERT_EQUAL_INT(0, inserted_row);
+  }
+
+  Cursor cursor;
+  int scan_table = db_scan_table(&db, table_name, &cursor);
+  TEST_ASSERT_EQUAL_INT(0, scan_table);
+
+  for (u32 i = 0; i < records; i++) {
+    i32 buf = 0;
+    int scanned = db_scan_next(&db, &cursor, &buf);
+    TEST_ASSERT_EQUAL_INT(0, scanned);
+  }
+
+  TEST_ASSERT_EQUAL_UINT32(records, cursor.read_records);
+}
+
+void test_db_update_row_modifies_row() {
+  char *table_name = "Table1";
+  Column column1 = {.type = 0, .size = 4, .name = "column1"};
+
+  int table_create = db_create_table(&db, table_name, &column1, 1);
+  TEST_ASSERT_EQUAL_INT(0, table_create);
+
+  i32 buf = 100;
+  int inserted_row = db_insert_row(&db, table_name, &buf, sizeof(buf));
+  TEST_ASSERT_EQUAL_INT(0, inserted_row);
+
+  Cursor cursor;
+  int scan_table = db_scan_table(&db, table_name, &cursor);
+  TEST_ASSERT_EQUAL_INT(0, scan_table);
+
+  i32 scan_buf = 0;
+  int scanned = db_scan_next(&db, &cursor, &scan_buf);
+  TEST_ASSERT_EQUAL_INT(0, scanned);
+
+  i32 new_buf = 200;
+  int updated_row = db_update_row(&db, &cursor, &new_buf);
+  TEST_ASSERT_EQUAL_INT(0, updated_row);
+
+  i32 actual_buf = 0;
+  memcpy(&actual_buf,
+         &cursor.curr_page->data[PAGE_HEADER_SIZE +
+                                 (cursor.read_records - 1) *
+                                     (RECORD_HEADER_SIZE + cursor.row_size) +
+                                 RECORD_HEADER_SIZE],
+         cursor.row_size);
+  TEST_ASSERT_EQUAL_UINT32(new_buf, actual_buf);
 }
